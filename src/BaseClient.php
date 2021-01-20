@@ -231,7 +231,9 @@ class BaseClient
         // access token
         $this->pushMiddleware($this->accessTokenMiddleware(), 'access_token');
         // log
-        $this->pushMiddleware($this->logMiddleware(), 'log');
+        if ($this->app->logger) {
+            $this->pushMiddleware($this->logMiddleware(), 'log');
+        }
     }
 
     /**
@@ -259,8 +261,10 @@ class BaseClient
      */
     protected function logMiddleware()
     {
-        $formatter = new MessageFormatter($this->app->config->get('http.log_template') ?? MessageFormatter::DEBUG);
-
-        return Middleware::log($this->app->logger, $formatter, LogLevel::DEBUG);
+        return Middleware::log(
+            $this->app->logger,
+            new MessageFormatter($this->app->config->get('http.log_template', MessageFormatter::DEBUG)),
+            LogLevel::DEBUG
+        );
     }
 }
