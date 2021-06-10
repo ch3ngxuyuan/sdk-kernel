@@ -169,9 +169,9 @@ class LogManager implements LoggerInterface
      */
     protected function createEmergencyLogger()
     {
-        return new Monolog('CpsOpen', $this->prepareHandlers([
+        return new Monolog('SDK', $this->prepareHandlers([
             new StreamHandler(
-                \sys_get_temp_dir() . '/cps/cps.log',
+                \sys_get_temp_dir() . '/sdk/sdk.log',
                 $this->level(['level' => 'debug'])
             )
         ]));
@@ -269,7 +269,7 @@ class LogManager implements LoggerInterface
             $this->prepareHandler(new SlackWebhookHandler(
                 $config['url'],
                 $config['channel'] ?? null,
-                $config['username'] ?? 'CpsOpen',
+                $config['username'] ?? 'SDK',
                 $config['attachment'] ?? true,
                 $config['emoji'] ?? ':boom:',
                 $config['short'] ?? false,
@@ -292,7 +292,7 @@ class LogManager implements LoggerInterface
     {
         return new Monolog($this->parseChannel($config), [
             $this->prepareHandler(new SyslogHandler(
-                'CpsOpen',
+                'SDK',
                 $config['facility'] ?? LOG_USER,
                 $this->level($config)
             ), $config),
@@ -374,7 +374,7 @@ class LogManager implements LoggerInterface
      */
     protected function parseChannel(array $config)
     {
-        return $config['name'] ?? 'CpsOpen';
+        return $config['name'] ?? 'SDK';
     }
 
     /**
