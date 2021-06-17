@@ -4,8 +4,23 @@ namespace SDK\Kernel;
 
 use SDK\Kernel\Contracts\SignerInterface;
 
-class Signer implements SignerInterface
+abstract class Signer implements SignerInterface
 {
+    /**
+     * @var \SDK\Kernel\ServiceContainer
+     */
+    protected $app;
+
+    /**
+     * AccessToken constructor.
+     *
+     * @param \SDK\Kernel\ServiceContainer $app
+     */
+    public function __construct(ServiceContainer $app)
+    {
+        $this->app = $app;
+    }
+    
     /**
      * @param array $params
      *
