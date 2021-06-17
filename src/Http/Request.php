@@ -54,7 +54,7 @@ class Request extends GuzzleRequest
     public function toArray()
     {
         $content = $this->removeControlCharacters($this->getBodyContents());
-        $contentType = $this->getMethod();
+        $contentType = $this->getHeaderLine('Content-Type');
 
         switch (true) {
             case strpos($contentType, 'application/x-www-form-urlencoded') !== false:
