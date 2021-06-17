@@ -2,9 +2,16 @@
 
 namespace SDK\Kernel;
 
-class Signer
+use SDK\Kernel\Contracts\SignerInterface;
+
+class Signer implements SignerInterface
 {
-    public static function sign(array $params): string
+    /**
+     * @param array $params
+     *
+     * @return string
+     */
+    public function sign(array $params): string
     {
         $params = array_filter($params, function ($param) {
             return $param !== null && $param !== '';
@@ -27,8 +34,14 @@ class Signer
         return strtoupper(md5($sign));
     }
 
-    public static function verify(string $signature, array $params): bool
+    /**
+     * @param string $signature
+     * @param array $params
+     *
+     * @return bool
+     */
+    public function verify(string $signature, array $params): bool
     {
-        return $signature == self::sign($params);
+        return $signature == $this->sign($params);
     }
 }
