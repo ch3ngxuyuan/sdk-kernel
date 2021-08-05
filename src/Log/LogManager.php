@@ -2,7 +2,6 @@
 
 namespace SDK\Kernel\Log;
 
-use GuzzleHttp\MessageFormatter;
 use SDK\Kernel\ServiceContainer;
 use InvalidArgumentException;
 use Monolog\Formatter\LineFormatter;
@@ -413,21 +412,6 @@ class LogManager implements LoggerInterface
         $formatter->includeStacktraces();
 
         return $formatter;
-    }
-
-    /**
-     * Get a Http message formatter instance
-     *
-     * @return MessageFormatter
-     */
-    public function getHttpFormatter()
-    {
-        return new MessageFormatter(
-            $this->app->config->get(
-                'http.log_template',
-                MessageFormatter::DEBUG
-            )
-        );
     }
 
     /**

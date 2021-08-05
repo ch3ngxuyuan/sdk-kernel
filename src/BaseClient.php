@@ -3,7 +3,9 @@
 namespace SDK\Kernel;
 
 use GuzzleHttp\Exception\BadResponseException;
-use GuzzleHttp\Middleware;
+use GuzzleHttp\Exception\RequestException;
+use GuzzleHttp\MessageFormatter;
+use GuzzleHttp\Promise\Create;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Log\LogLevel;
 use SDK\Kernel\Contracts\AccessTokenInterface;
@@ -288,10 +290,45 @@ class BaseClient
      */
     protected function logMiddleware()
     {
-        return Middleware::log(
-            $this->app->logger,
-            $this->app->logger->getHttpFormatter(),
-            LogLevel::DEBUG
+        $logger = $this->app->logger;
+
+        $formatter = new MessageFormatter(
+            $this->app->config->get(
+                'http.log_template',
+                MessageFormatter::DEBUG
+            )
         );
+
+        $logLevel = LogLevel::DEBUG;
+
+        return function (callable $handler) use ($logger, $formatter, $logLevel) {
+            return function ($request, array $options) use ($handler, $logger, $formatter, $logLevel) {
+                return $handler($request, $options)->then(
+                    function ($response) use ($logger, $request, $formatter, $logLevel) {
+                        if (method_exists($this, 'getResponseLogLevel')) {
+                            $logLevel = $this->getResponseLogLevel($response, $request);
+                        }
+
+                        $logger->log(
+                            $logLevel,
+                            $formatter->format($request, $response)
+                        );
+
+                        return $response;
+                    },
+                    function ($reason) use ($logger, $request, $formatter) {
+                        $response = $reason instanceof RequestException
+                            ? $reason->getResponse()
+                            : null;
+
+                        $logger->notice(
+                            $formatter->format($request, $response, $reason)
+                        );
+
+                        return Create::rejectionFor($reason);
+                    }
+                );
+            };
+        };
     }
 }
