@@ -35,7 +35,12 @@ trait ResponseCastable
                 return $response;
             default:
                 if (!is_subclass_of($type, Arrayable::class)) {
-                    throw new InvalidConfigException(sprintf('Config key "response_type" classname must be an instanceof %s', Arrayable::class));
+                    throw new InvalidConfigException(
+                        sprintf(
+                            'Config key "response_type" classname must be an instanceof %s',
+                            Arrayable::class
+                        )
+                    );
                 }
 
                 return new $type($response);
@@ -71,7 +76,9 @@ trait ResponseCastable
 
                 break;
             default:
-                throw new InvalidArgumentException(sprintf('Unsupported response type "%s"', gettype($response)));
+                throw new InvalidArgumentException(
+                    sprintf('Unsupported response type "%s"', gettype($response))
+                );
         }
 
         return $this->castResponseToType($response, $type);

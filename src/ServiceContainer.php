@@ -13,9 +13,9 @@ use Pimple\Container;
  * Class ServiceContainer.
  *
  * @property \SDK\Kernel\Config $config
+ * @property \SDK\Kernel\Log\LogManager $logger
  * @property \Symfony\Component\HttpFoundation\Request $request
  * @property \GuzzleHttp\Client $http_client
- * @property \Monolog\Logger $logger
  * @property \Symfony\Component\EventDispatcher\EventDispatcher $events
  */
 class ServiceContainer extends Container

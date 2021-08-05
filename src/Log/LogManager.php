@@ -2,6 +2,7 @@
 
 namespace SDK\Kernel\Log;
 
+use GuzzleHttp\MessageFormatter;
 use SDK\Kernel\ServiceContainer;
 use InvalidArgumentException;
 use Monolog\Formatter\LineFormatter;
@@ -64,6 +65,19 @@ class LogManager implements LoggerInterface
     }
 
     /**
+     * Get default logger name
+     *
+     * @return string
+     */
+    protected function getDefaultName()
+    {
+        return (string)$this->app->config->get(
+            'log.default_name',
+            'sdk-kernel'
+        );
+    }
+
+    /**
      * Create a new, on-demand aggregate logger instance.
      *
      * @param array $channels
@@ -75,7 +89,9 @@ class LogManager implements LoggerInterface
      */
     public function stack(array $channels, $channel = null)
     {
-        return $this->createStackDriver(compact('channels', 'channel'));
+        return $this->createStackDriver(
+            compact('channels', 'channel')
+        );
     }
 
     /**
@@ -118,13 +134,15 @@ class LogManager implements LoggerInterface
     protected function get($name)
     {
         try {
-            return $this->channels[$name] ?? ($this->channels[$name] = $this->resolve($name));
+            return $this->channels[$name]
+                ?? ($this->channels[$name] = $this->resolve($name));
         } catch (\Throwable $e) {
             $logger = $this->createEmergencyLogger();
 
-            $logger->emergency('Unable to create configured logger. Using emergency logger.', [
-                'exception' => $e,
-            ]);
+            $logger->emergency(
+                'Unable to create configured logger. Using emergency logger.',
+                ['exception' => $e]
+            );
 
             return $logger;
         }
@@ -141,10 +159,18 @@ class LogManager implements LoggerInterface
      */
     protected function resolve($name)
     {
-        $config = $this->app['config']->get(\sprintf('log.channels.%s', $name));
+        if ($this->app->config->get('log.driver') == $name) {
+            $config = $this->app->config->get('log');
+        } else {
+            $config = $this->app->config->get(
+                \sprintf('log.channels.%s', $name)
+            );
+        }
 
         if (is_null($config)) {
-            throw new InvalidArgumentException(\sprintf('Log [%s] is not defined.', $name));
+            throw new InvalidArgumentException(
+                \sprintf('Log [%s] is not defined.', $name)
+            );
         }
 
         if (isset($this->customCreators[$config['driver']])) {
@@ -157,7 +183,9 @@ class LogManager implements LoggerInterface
             return $this->{$driverMethod}($config);
         }
 
-        throw new InvalidArgumentException(\sprintf('Driver [%s] is not supported.', $config['driver']));
+        throw new InvalidArgumentException(
+            \sprintf('Driver [%s] is not supported.', $config['driver'])
+        );
     }
 
     /**
@@ -169,12 +197,15 @@ class LogManager implements LoggerInterface
      */
     protected function createEmergencyLogger()
     {
-        return new Monolog('SDK', $this->prepareHandlers([
-            new StreamHandler(
-                \sys_get_temp_dir() . '/sdk/sdk.log',
-                $this->level(['level' => 'debug'])
-            )
-        ]));
+        return new Monolog(
+            $this->getDefaultName(),
+            $this->prepareHandlers([
+                new StreamHandler(
+                    \sys_get_temp_dir() . '/sdk-kernel/sdk-kernel.log',
+                    $this->level(['level' => 'debug'])
+                )
+            ])
+        );
     }
 
     /**
@@ -225,13 +256,16 @@ class LogManager implements LoggerInterface
     protected function createSingleDriver(array $config)
     {
         return new Monolog($this->parseChannel($config), [
-            $this->prepareHandler(new StreamHandler(
-                $config['path'],
-                $this->level($config),
-                $config['bubble'] ?? true,
-                $config['permission'] ?? null,
-                $config['locking'] ?? false
-            ), $config),
+            $this->prepareHandler(
+                new StreamHandler(
+                    $config['path'],
+                    $this->level($config),
+                    $config['bubble'] ?? true,
+                    $config['permission'] ?? null,
+                    $config['locking'] ?? false
+                ),
+                $config
+            ),
         ]);
     }
 
@@ -245,14 +279,17 @@ class LogManager implements LoggerInterface
     protected function createDailyDriver(array $config)
     {
         return new Monolog($this->parseChannel($config), [
-            $this->prepareHandler(new RotatingFileHandler(
-                $config['path'],
-                $config['days'] ?? 7,
-                $this->level($config),
-                $config['bubble'] ?? true,
-                $config['permission'] ?? null,
-                $config['locking'] ?? false
-            ), $config),
+            $this->prepareHandler(
+                new RotatingFileHandler(
+                    $config['path'],
+                    $config['days'] ?? 7,
+                    $this->level($config),
+                    $config['bubble'] ?? true,
+                    $config['permission'] ?? null,
+                    $config['locking'] ?? false
+                ),
+                $config
+            ),
         ]);
     }
 
@@ -266,18 +303,21 @@ class LogManager implements LoggerInterface
     protected function createSlackDriver(array $config)
     {
         return new Monolog($this->parseChannel($config), [
-            $this->prepareHandler(new SlackWebhookHandler(
-                $config['url'],
-                $config['channel'] ?? null,
-                $config['username'] ?? 'SDK',
-                $config['attachment'] ?? true,
-                $config['emoji'] ?? ':boom:',
-                $config['short'] ?? false,
-                $config['context'] ?? true,
-                $this->level($config),
-                $config['bubble'] ?? true,
-                $config['exclude_fields'] ?? []
-            ), $config),
+            $this->prepareHandler(
+                new SlackWebhookHandler(
+                    $config['url'],
+                    $config['channel'] ?? null,
+                    $config['username'] ?? $this->getDefaultName(),
+                    $config['attachment'] ?? true,
+                    $config['emoji'] ?? ':boom:',
+                    $config['short'] ?? false,
+                    $config['context'] ?? true,
+                    $this->level($config),
+                    $config['bubble'] ?? true,
+                    $config['exclude_fields'] ?? []
+                ),
+                $config
+            ),
         ]);
     }
 
@@ -291,11 +331,14 @@ class LogManager implements LoggerInterface
     protected function createSyslogDriver(array $config)
     {
         return new Monolog($this->parseChannel($config), [
-            $this->prepareHandler(new SyslogHandler(
-                'SDK',
-                $config['facility'] ?? LOG_USER,
-                $this->level($config)
-            ), $config),
+            $this->prepareHandler(
+                new SyslogHandler(
+                    $this->getDefaultName(),
+                    $config['facility'] ?? LOG_USER,
+                    $this->level($config)
+                ),
+                $config
+            ),
         ]);
     }
 
@@ -343,10 +386,11 @@ class LogManager implements LoggerInterface
      */
     protected function prepareHandler(HandlerInterface $handler, array $config = [])
     {
-        if (!isset($config['formatter'])) {
-            if ($handler instanceof FormattableHandlerInterface) {
-                $handler->setFormatter($this->formatter());
-            }
+        if ($handler instanceof FormattableHandlerInterface) {
+            $handler->setFormatter(
+                $config['formatter']
+                ?? $this->formatter()
+            );
         }
 
         return $handler;
@@ -359,10 +403,31 @@ class LogManager implements LoggerInterface
      */
     protected function formatter()
     {
-        $formatter = new LineFormatter(null, null, true, true);
+        $formatter = new LineFormatter(
+            null,
+            null,
+            true,
+            true
+        );
+
         $formatter->includeStacktraces();
 
         return $formatter;
+    }
+
+    /**
+     * Get a Http message formatter instance
+     *
+     * @return MessageFormatter
+     */
+    public function getHttpFormatter()
+    {
+        return new MessageFormatter(
+            $this->app->config->get(
+                'http.log_template',
+                MessageFormatter::DEBUG
+            )
+        );
     }
 
     /**
@@ -374,7 +439,7 @@ class LogManager implements LoggerInterface
      */
     protected function parseChannel(array $config)
     {
-        return $config['name'] ?? 'SDK';
+        return $config['name'] ?? $this->getDefaultName();
     }
 
     /**
@@ -404,7 +469,10 @@ class LogManager implements LoggerInterface
      */
     public function getDefaultDriver()
     {
-        return $this->app['config']['log.default'];
+        return $this->app->config->get(
+            'log.default',
+            $this->app->config->get('log.driver')
+        );
     }
 
     /**
@@ -414,7 +482,7 @@ class LogManager implements LoggerInterface
      */
     public function setDefaultDriver($name)
     {
-        $this->app['config']['log.default'] = $name;
+        $this->app->config->set('log.default', $name);
     }
 
     /**

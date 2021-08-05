@@ -83,7 +83,9 @@ trait HasHttpRequests
             if (property_exists($this, 'app') && $this->app['http_client']) {
                 $this->httpClient = $this->app['http_client'];
             } else {
-                $this->httpClient = new Client(['handler' => HandlerStack::create($this->getGuzzleHandler())]);
+                $this->httpClient = new Client([
+                    'handler' => HandlerStack::create($this->getGuzzleHandler())
+                ]);
             }
         }
 
@@ -132,9 +134,9 @@ trait HasHttpRequests
      */
     protected function request($url, $method = 'GET', $options = []): ResponseInterface
     {
-        $method = strtoupper($method);
-
-        $options = array_merge(self::$defaults, $options, ['handler' => $this->getHandlerStack()]);
+        $options = array_merge(self::$defaults, $options, [
+            'handler' => $this->getHandlerStack()
+        ]);
 
         $options = $this->fixJsonIssue($options);
 
@@ -142,7 +144,12 @@ trait HasHttpRequests
             $options['base_uri'] = $this->baseUri;
         }
 
-        $response = $this->getHttpClient()->request($method, $url, $options);
+        $response = $this->getHttpClient()->request(
+            strtoupper($method),
+            $url,
+            $options
+        );
+
         $response->getBody()->rewind();
 
         return $response;
@@ -188,12 +195,21 @@ trait HasHttpRequests
     protected function fixJsonIssue(array $options): array
     {
         if (isset($options['json']) && is_array($options['json'])) {
-            $options['headers'] = array_merge($options['headers'] ?? [], ['Content-Type' => 'application/json']);
+            $options['headers'] = array_merge(
+                $options['headers'] ?? [],
+                ['Content-Type' => 'application/json']
+            );
 
             if (empty($options['json'])) {
-                $options['body'] = \GuzzleHttp\json_encode($options['json'], JSON_FORCE_OBJECT);
+                $options['body'] = \GuzzleHttp\json_encode(
+                    $options['json'],
+                    JSON_FORCE_OBJECT
+                );
             } else {
-                $options['body'] = \GuzzleHttp\json_encode($options['json'], JSON_UNESCAPED_UNICODE);
+                $options['body'] = \GuzzleHttp\json_encode(
+                    $options['json'],
+                    JSON_UNESCAPED_UNICODE
+                );
             }
 
             unset($options['json']);

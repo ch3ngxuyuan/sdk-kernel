@@ -2,14 +2,14 @@
 
 namespace SDK\Kernel;
 
-use GuzzleHttp\Exception\GuzzleException;
-use SDK\Kernel\Contracts\AccessTokenInterface;
-use SDK\Kernel\Http\Response;
-use SDK\Kernel\Traits\HasHttpRequests;
-use GuzzleHttp\MessageFormatter;
+use GuzzleHttp\Exception\BadResponseException;
 use GuzzleHttp\Middleware;
-use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\ResponseInterface;
 use Psr\Log\LogLevel;
+use SDK\Kernel\Contracts\AccessTokenInterface;
+use SDK\Kernel\Traits\HasHttpRequests;
+use SDK\Kernel\Http\Response;
+use Psr\Http\Message\RequestInterface;
 
 /**
  * Class BaseClient.
@@ -44,7 +44,7 @@ class BaseClient
     public function __construct(ServiceContainer $app, AccessTokenInterface $accessToken = null)
     {
         $this->app = $app;
-        $this->accessToken = $accessToken ?? ($this->app['access_token'] ?? null);
+        $this->accessToken = $accessToken ?: ($this->app['access_token'] ?? null);
     }
 
     /**
@@ -57,7 +57,9 @@ class BaseClient
      */
     protected function httpGet(string $url, array $query = [])
     {
-        return $this->request($url, 'GET', ['query' => $query]);
+        return $this->request($url, 'GET', [
+            'query' => $query
+        ]);
     }
 
     /**
@@ -70,7 +72,9 @@ class BaseClient
      */
     protected function httpPost(string $url, array $data = [])
     {
-        return $this->request($url, 'POST', ['form_params' => $data]);
+        return $this->request($url, 'POST', [
+            'form_params' => $data
+        ]);
     }
 
     /**
@@ -83,7 +87,9 @@ class BaseClient
      */
     protected function httpPut(string $url, array $data = [])
     {
-        return $this->request($url, 'PUT', ['json' => $data]);
+        return $this->request($url, 'PUT', [
+            'json' => $data
+        ]);
     }
 
     /**
@@ -96,7 +102,9 @@ class BaseClient
      */
     protected function httpDelete(string $url, array $data = [])
     {
-        return $this->request($url, 'DELETE', ['json' => $data]);
+        return $this->request($url, 'DELETE', [
+            'json' => $data
+        ]);
     }
 
     /**
@@ -110,7 +118,10 @@ class BaseClient
      */
     protected function httpPostJson(string $url, array $data = [], array $query = [])
     {
-        return $this->request($url, 'POST', ['query' => $query, 'json' => $data]);
+        return $this->request($url, 'POST', [
+            'query' => $query,
+            'json' => $data
+        ]);
     }
 
     /**
@@ -138,7 +149,13 @@ class BaseClient
             $multipart[] = compact('name', 'contents');
         }
 
-        return $this->request($url, 'POST', ['query' => $query, 'multipart' => $multipart, 'connect_timeout' => 30, 'timeout' => 30, 'read_timeout' => 30]);
+        return $this->request($url, 'POST', [
+            'query' => $query,
+            'multipart' => $multipart,
+            'connect_timeout' => 30,
+            'timeout' => 30,
+            'read_timeout' => 30
+        ]);
     }
 
     /**
@@ -172,7 +189,12 @@ class BaseClient
      * @throws \SDK\Kernel\Exceptions\InvalidConfigException
      * @throws \GuzzleHttp\Exception\GuzzleException
      */
-    protected function request(string $url, string $method = 'GET', array $options = [], $returnRaw = false)
+    protected function request(
+        string $url,
+        string $method = 'GET',
+        array $options = [],
+        $returnRaw = false
+    )
     {
         if (empty($this->middlewares)) {
             $this->registerHttpMiddlewares();
@@ -180,21 +202,20 @@ class BaseClient
 
         try {
             $response = $this->performRequest($url, $method, $options);
-        } catch (GuzzleException $e) {
-            return $this->handleRequestException($e) ?? [];
+        } catch (BadResponseException $exception) {
+            if (method_exists($this, 'handleBadResponseException')) {
+                return $this->handleBadResponseException($exception);
+            }
+            throw $exception;
         }
 
-        return $returnRaw ? $response : $this->unwrapResponse($response);
-    }
+        $result = $returnRaw ? $response : $this->unwrapResponse($response);
 
-    /**
-     * @param GuzzleException $e
-     *
-     * @throws GuzzleException
-     */
-    protected function handleRequestException(GuzzleException $e)
-    {
-        throw $e;
+        if (method_exists($this, 'handleResponseResult')) {
+            return $this->handleResponseResult($result);
+        }
+
+        return $result;
     }
 
     /**
@@ -203,9 +224,12 @@ class BaseClient
      * @return array|object|\Psr\Http\Message\ResponseInterface|string|Support\Collection
      * @throws Exceptions\InvalidConfigException
      */
-    protected function unwrapResponse(\Psr\Http\Message\ResponseInterface $response)
+    protected function unwrapResponse(ResponseInterface $response)
     {
-        return $this->castResponseToType($response, $this->app->config->get('response_type'));
+        return $this->castResponseToType(
+            $response,
+            $this->app->config->get('response_type')
+        );
     }
 
     /**
@@ -220,7 +244,9 @@ class BaseClient
      */
     protected function requestRaw(string $url, string $method = 'GET', array $options = [])
     {
-        return Response::buildFromPsrResponse($this->request($url, $method, $options, true));
+        return Response::buildFromPsrResponse(
+            $this->request($url, $method, $options, true)
+        );
     }
 
     /**
@@ -230,6 +256,7 @@ class BaseClient
     {
         // access token
         $this->pushMiddleware($this->accessTokenMiddleware(), 'access_token');
+
         // log
         if ($this->app->logger) {
             $this->pushMiddleware($this->logMiddleware(), 'log');
@@ -255,7 +282,7 @@ class BaseClient
     }
 
     /**
-     * Log the request.
+     * Request Interceptor.
      *
      * @return \Closure
      */
@@ -263,7 +290,7 @@ class BaseClient
     {
         return Middleware::log(
             $this->app->logger,
-            new MessageFormatter($this->app->config->get('http.log_template', MessageFormatter::DEBUG)),
+            $this->app->logger->getHttpFormatter(),
             LogLevel::DEBUG
         );
     }
