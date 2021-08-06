@@ -2,13 +2,12 @@
 
 namespace SDK\Kernel;
 
-use GuzzleHttp\Exception\BadResponseException;
-use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\MessageFormatter;
-use GuzzleHttp\Promise\Create;
+use GuzzleHttp\Middleware;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Log\LogLevel;
 use SDK\Kernel\Contracts\AccessTokenInterface;
+use SDK\Kernel\Exceptions\NotEligibleResponseException;
 use SDK\Kernel\Traits\HasHttpRequests;
 use SDK\Kernel\Http\Response;
 use Psr\Http\Message\RequestInterface;
@@ -202,22 +201,9 @@ class BaseClient
             $this->registerHttpMiddlewares();
         }
 
-        try {
-            $response = $this->performRequest($url, $method, $options);
-        } catch (BadResponseException $exception) {
-            if (method_exists($this, 'handleBadResponseException')) {
-                return $this->handleBadResponseException($exception);
-            }
-            throw $exception;
-        }
+        $response = $this->performRequest($url, $method, $options);
 
-        $result = $returnRaw ? $response : $this->unwrapResponse($response);
-
-        if (method_exists($this, 'handleResponseResult')) {
-            return $this->handleResponseResult($result);
-        }
-
-        return $result;
+        return $returnRaw ? $response : $this->unwrapResponse($response);
     }
 
     /**
@@ -260,15 +246,23 @@ class BaseClient
         $this->pushMiddleware($this->accessTokenMiddleware(), 'access_token');
 
         // log
-        if ($this->app->logger) {
+        if ($this->app->offsetExists('logger')) {
             $this->pushMiddleware($this->logMiddleware(), 'log');
+        }
+
+        // not eligible response
+        if (method_exists($this, 'isNotEligibleResponse')) {
+            $this->pushMiddleware(
+                $this->notEligibleResponseMiddleware(),
+                'not_eligible_response'
+            );
         }
     }
 
     /**
      * Attache access token to request query.
      *
-     * @return \Closure
+     * @return callable
      */
     protected function accessTokenMiddleware()
     {
@@ -284,51 +278,48 @@ class BaseClient
     }
 
     /**
+     * Not eligible response middleware
+     *
+     * @return callable
+     */
+    protected function notEligibleResponseMiddleware()
+    {
+        return function (callable $handler) {
+            return function ($request, array $options) use ($handler) {
+                return $handler($request, $options)->then(function ($response) use ($request) {
+                    if ($message = $this->isNotEligibleResponse($response, $request)) {
+                        if (!is_string($message)) {
+                            $message = 'Unsuccessful request';
+                        }
+                        throw new NotEligibleResponseException(
+                            $message,
+                            $request,
+                            $response
+                        );
+                    }
+
+                    return $response;
+                });
+            };
+        };
+    }
+
+    /**
      * Request Interceptor.
      *
-     * @return \Closure
+     * @return callable
      */
     protected function logMiddleware()
     {
-        $logger = $this->app->logger;
-
-        $formatter = new MessageFormatter(
-            $this->app->config->get(
-                'http.log_template',
-                MessageFormatter::DEBUG
-            )
+        return Middleware::log(
+            $this->app->logger,
+            new MessageFormatter(
+                $this->app->config->get(
+                    'http.log_template',
+                    MessageFormatter::DEBUG
+                )
+            ),
+            LogLevel::DEBUG
         );
-
-        $logLevel = LogLevel::DEBUG;
-
-        return function (callable $handler) use ($logger, $formatter, $logLevel) {
-            return function ($request, array $options) use ($handler, $logger, $formatter, $logLevel) {
-                return $handler($request, $options)->then(
-                    function ($response) use ($logger, $request, $formatter, $logLevel) {
-                        if (method_exists($this, 'getResponseLogLevel')) {
-                            $logLevel = $this->getResponseLogLevel($response, $request);
-                        }
-
-                        $logger->log(
-                            $logLevel,
-                            $formatter->format($request, $response)
-                        );
-
-                        return $response;
-                    },
-                    function ($reason) use ($logger, $request, $formatter) {
-                        $response = $reason instanceof RequestException
-                            ? $reason->getResponse()
-                            : null;
-
-                        $logger->notice(
-                            $formatter->format($request, $response, $reason)
-                        );
-
-                        return Create::rejectionFor($reason);
-                    }
-                );
-            };
-        };
     }
 }
