@@ -5,6 +5,7 @@ namespace SDK\Kernel\Traits;
 use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Middleware;
 use Psr\Http\Message\ResponseInterface;
 
 /**
@@ -178,13 +179,16 @@ trait HasHttpRequests
             return $this->handlerStack;
         }
 
-        $this->handlerStack = HandlerStack::create($this->getGuzzleHandler());
-
+        $stack = new HandlerStack($this->getGuzzleHandler());
+        $stack->push(Middleware::cookies(), 'cookies');
+        $stack->push(Middleware::prepareBody(), 'prepare_body');
+        $stack->push(Middleware::redirect(), 'allow_redirects');
         foreach ($this->middlewares as $name => $middleware) {
-            $this->handlerStack->push($middleware, $name);
+            $stack->push($middleware, $name);
         }
+        $stack->push(Middleware::httpErrors(), 'http_errors');
 
-        return $this->handlerStack;
+        return $this->handlerStack = $stack;
     }
 
     /**
