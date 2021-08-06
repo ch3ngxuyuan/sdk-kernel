@@ -278,7 +278,7 @@ class BaseClient
     }
 
     /**
-     * Not eligible response middleware
+     * Check the response.
      *
      * @return callable
      */
@@ -305,7 +305,7 @@ class BaseClient
     }
 
     /**
-     * Request Interceptor.
+     * Log the request.
      *
      * @return callable
      */
