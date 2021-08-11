@@ -246,7 +246,7 @@ class BaseClient
         $this->pushMiddleware($this->accessTokenMiddleware(), 'access_token');
 
         // log
-        if ($this->app->offsetExists('logger')) {
+        if ($this->app->offsetExists('logger') && $this->app->logger) {
             $this->pushMiddleware($this->logMiddleware(), 'log');
         }
 
