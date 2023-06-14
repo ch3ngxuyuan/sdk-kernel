@@ -1,5 +1,5 @@
 {
-  "name": "wxm/sdk-kernel",
+  "name": "ch3ngxuyuan/sdk-kernel",
   "type": "library",
   "description": "SDK kernel for php",
   "keywords": [
@@ -8,12 +8,12 @@
     "php",
     "laravel"
   ],
-  "homepage": "https://github.com/qq15725/sdk-kernel",
+  "homepage": "https://github.com/ch3ngxuyuan/sdk-kernel",
   "license": "MIT",
   "authors": [
     {
-      "name": "wxm",
-      "email": "157215725@qq.com",
+      "name": "ch3ngxuyuan",
+      "email": "123456@qq.com",
       "role": "Developer"
     }
   ],
